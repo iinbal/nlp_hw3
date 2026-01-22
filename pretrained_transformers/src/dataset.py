@@ -167,9 +167,43 @@ class CharCorruptionDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        # TODO [part e]: see spec above
-        raise NotImplementedError
+        #randomly truncate the document in the spectrum of the wanted size
+        document = self.data[idx]
+        min_len,max_len = 4, int(self.block_size * 7 / 8)
+        trunc_len = random.randint(min_len, max_len)
+        document = document[:trunc_len]
+        curr_len = len(document) #edge case for small documents (less then 4 chars)
+        
+        #break into prefix, masked_content, suffix, while keeping the choosing of the masked part random
+        mask_len = random.randint(1, max(1, int(curr_len / 2)))
+        start_idx = random.randint(0, curr_len - mask_len)
+        end_idx = start_idx + mask_len
+        
+        prefix = document[:start_idx]
+        masked_content = document[start_idx:end_idx]
+        suffix = document[end_idx:]
+        
+        #construct the main content string
+        masked_string = prefix + self.MASK_CHAR + suffix + self.MASK_CHAR + masked_content
 
+        # calculate amount of padding needed to fill the block_size
+        pad_len = self.block_size - len(masked_string)
+        if pad_len < 0:
+            pad_len = 0
+            masked_string = masked_string[:self.block_size]
+        
+        masked_string += self.PAD_CHAR * pad_len
+        
+        #construct input (x) and output (y)
+        x_str = masked_string[:-1]
+        y_str = masked_string[1:]
+        
+        #encode using vocabulary
+        x = torch.tensor([self.stoi[c] for c in x_str], dtype=torch.long)
+        y = torch.tensor([self.stoi[c] for c in y_str], dtype=torch.long)
+
+        return x, y
+        
 """
 Code under here is strictly for your debugging purposes; feel free to modify
 as desired.
